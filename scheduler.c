@@ -1,18 +1,76 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 
 #define THREADS 3
+#define BUFFER 256
+
+typedef struct process {
+    int priority;
+    int time;
+    int *cpu;
+    int *io;
+    struct process *next;
+} Process;
+
+pthread_mutex_t ready_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void errorWithMessage (char *message){ // Output error message and exit program with failure
     printf("%s\n", message);
     exit(1);
 }
 
+void unalloc(Process *process){ // Frees allocated memory of a struct process
+    free(process->cpu);
+    free(process->io);
+    free(process);
+}
+
 void readThread(void *arg){ // Thread function for reading from the input file
     printf("I will read from input file\n");
-    pthread_exit(NULL);
+
+    FILE *fp = fopen((char *) arg, "r"); // Open file
+    if (!fp){
+        printf("%s\n", strerror(errno));
+        pthread_exit(NULL);
+    }
+
+    int bursts, time, seek, pos;
+    char line[BUFFER];
+    while (fgets(line, BUFFER, fp)){
+        if (line[1] == 'r'){ // Proc
+            Process *process = malloc(sizeof(Process));
+            sscanf(line, "proc %d %d%n", &process->priority, &bursts, &seek);
+
+            process->cpu = malloc(((bursts >> 1) + 1) * sizeof(int));
+            process->io = malloc((bursts >> 1) * sizeof(int));
+            process->time = 0;
+            process->next = NULL;
+
+            pos = seek;
+            for (int i = 0; i < bursts; pos += seek){ // Update process information
+                sscanf(line + pos, "%d%n", &time, &seek);
+                process->time += time;
+
+                if (i % 2 == 0) process->cpu[i++ >> 1] = time;
+                else process->io[i++ >> 1] = time;
+            }
+
+            unalloc(process);
+        }
+        else if (line[1] == 'l'){ // Sleep
+            sscanf(line, "sleep %d", &time);
+            usleep(time);
+        }
+        else if (line[1] == 't'){ // Stop
+            fclose(fp);
+            pthread_exit(NULL);
+        }
+    }
 }
 
 void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on scheduling algorithm
