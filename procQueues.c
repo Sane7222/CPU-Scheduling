@@ -104,7 +104,7 @@ void enqueue(ProcessQueue *queue, Process *newProcess) {
             curr = curr->next;
         }
 
-        // otherwise add process in place
+        // insert location found, add in place
         newProcess->next = curr;
         newProcess->prev = curr->prev;
         curr->prev->next = newProcess;
