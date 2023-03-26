@@ -40,7 +40,7 @@ ProcessQueue *initProcessQueue(Process *head, int queueType) {
     return newQueue;
 }
 
-// add a process to the tail of an unsorted queue
+// enqueue will add a process to a queue based on the queue's type.
 void enqueue(ProcessQueue *queue, Process *newProcess) {
     Process *curr = queue->head;
 
