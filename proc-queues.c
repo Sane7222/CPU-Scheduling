@@ -1,25 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-#define DEFAULT_PROC_QUEUE 1
-#define SJF_PROC_QUEUE 2
-#define PR_PROC_QUEUE 3
-#define RR_PROC_QUEUE 4
-
-typedef struct process {
-    int priority;
-    int time;
-    int timeInReady;
-    int *cpu;
-    int *io;
-    struct process *prev;
-    struct process *next;
-} Process;
-
-typedef struct processQueue {
-    Process *head;
-    int type;
-} ProcessQueue;
+#include "proc-queues.h"
 
 Process *initProcess(int priority, int time) {
     Process *newProcess = malloc(sizeof(Process));
@@ -123,7 +104,7 @@ void enqueue(ProcessQueue *queue, Process *newProcess) {
 }
 
 // remove a process from the head of the queue
-Process * dequeue(ProcessQueue *queue) {
+Process *dequeue(ProcessQueue *queue) {
     // handle an empty queue:
     if (queue->head == NULL) {
         return NULL;
@@ -182,36 +163,4 @@ void printProcessQueue(ProcessQueue *queue) {
         curr = curr->next;
     }
     printf("</ProcessQueue>\n");
-}
-
-void main() {
-    
-    ProcessQueue *queue = initProcessQueue(NULL, PR_PROC_QUEUE);
-
-    Process *proc1 = initProcess(10, 50);
-    Process *proc2 = initProcess(1, 20);
-    Process *proc3 = initProcess(10, 38);
-    Process *proc4 = initProcess(5, 110);
-    Process *proc5 = initProcess(3, 29);
-    Process *proc6 = initProcess(2, 73);
-    Process *proc7 = initProcess(9, 1);
-    Process *proc8 = initProcess(10, 2);
-    Process *proc9 = initProcess(5, 50);
-
-    enqueue(queue, proc1);
-    enqueue(queue, proc2);
-    enqueue(queue, proc3);
-    enqueue(queue, proc4);
-    enqueue(queue, proc5);
-    enqueue(queue, proc6);
-    enqueue(queue, proc7);
-    enqueue(queue, proc8);
-    enqueue(queue, proc9);
-
-    printProcessQueue(queue);
-    Process *dequeuedProc = dequeue(queue);
-    printProcess(dequeuedProc);
-    enqueue(queue, dequeuedProc);
-    printProcessQueue(queue);
-    freeProcessQueue(queue);
 }
