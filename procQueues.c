@@ -21,40 +21,16 @@ typedef struct processQueue {
     int type;
 } ProcessQueue;
 
-Process *dequeue(ProcessQueue *);
-
-void freeProcess(Process *process){
-    if (process->cpu != NULL) {
-        free(process->cpu);
-    }
-
-    if (process->io != NULL) {
-        free(process->io);
-    }
-
-    free(process);
-}
-
 Process *initProcess(int priority, int time) {
     Process *newProcess = malloc(sizeof(Process));
     newProcess->priority = priority;
     newProcess->time = time;
     newProcess->timeInReady = 0;
+    newProcess->cpu = NULL;
+    newProcess->io = NULL;
     newProcess->prev = NULL;
     newProcess->next = NULL;
     return newProcess;
-}
-
-void freeProcessQueue(ProcessQueue *queue) {
-    // first, free all processes in the queue...
-    Process *curr = dequeue(queue);
-    while (curr != NULL) {
-        freeProcess(curr);
-        curr = dequeue(queue);
-    }
-
-    // now free the queue itself...
-    free(queue);
 }
 
 ProcessQueue *initProcessQueue(Process *head, int queueType) {
@@ -161,7 +137,30 @@ Process * dequeue(ProcessQueue *queue) {
     return dequeuedProcess;
 }
 
-/* FOR DEBUGGING....
+void freeProcess(Process *process){
+    if (process->cpu != NULL) {
+        free(process->cpu);
+    }
+
+    if (process->io != NULL) {
+        free(process->io);
+    }
+
+    free(process);
+}
+
+void freeProcessQueue(ProcessQueue *queue) {
+    // first, free all processes in the queue...
+    Process *curr = dequeue(queue);
+    while (curr != NULL) {
+        freeProcess(curr);
+        curr = dequeue(queue);
+    }
+
+    // now free the queue itself...
+    free(queue);
+}
+
 void printProcess(Process *proc) {
     if (proc != NULL) {
         printf("<Process time=%d, priority=%d>\n", proc->time, proc->priority);
@@ -215,4 +214,3 @@ void main() {
     printProcessQueue(queue);
     freeProcessQueue(queue);
 }
-*/
