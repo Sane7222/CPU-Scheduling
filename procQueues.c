@@ -65,6 +65,7 @@ void enqueue(ProcessQueue *queue, Process *newProcess) {
 
         // traverse the queue
         while (curr->time <= newProcess->time) {
+            // handle end of queue scenario
             if (curr->next == NULL) {
                 curr->next = newProcess;
                 newProcess->prev = curr;
@@ -93,7 +94,7 @@ void enqueue(ProcessQueue *queue, Process *newProcess) {
 
         // traverse the queue
         while (curr->priority >= newProcess->priority) {
-            // handle end of queue
+            // handle end of queue scenario
             if (curr->next == NULL) {
                 curr->next = newProcess;
                 newProcess->prev = curr;
