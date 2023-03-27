@@ -14,6 +14,7 @@ pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 ProcessQueue *ready_queue = NULL; 
 ProcessQueue *io_queue = NULL;
+ProcessQueue *terminated_queue = NULL;
 
 int parsing_complete = 0;
 int total_processes = 0;
@@ -45,7 +46,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
             process->currentIO_Burst = 0;
             process->totalIO_Bursts = (bursts >> 1);
             process->time = 0;
-            process->timeInReady = 0;
+            process->totalTimeInReadyQueue = 0;
             process->next = NULL;
             process->prev = NULL;
 
@@ -163,6 +164,7 @@ void main (int argc, char *argv[]){
             // valid algorithm specified, initialize appropriate queue
             ready_queue = initProcessQueue(NULL, i);
             io_queue = initProcessQueue(NULL, DEFAULT_PROC_QUEUE);
+            terminated_queue = initProcessQueue(NULL, DEFAULT_PROC_QUEUE);
             break;
         }
     } if (!valid) errorWithMessage("Invalid algorithm");
