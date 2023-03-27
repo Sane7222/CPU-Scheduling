@@ -4,6 +4,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
+#include <time.h>
 #include "proc-queues.h"
 
 #define THREADS 3
@@ -19,6 +20,8 @@ ProcessQueue *terminated_queue = NULL;
 int parsing_complete = 0;
 int total_processes = 0;
 int processes_completed = 0;
+clock_t start_processing;
+clock_t end_processing;
 
 void errorWithMessage (char *message){ // Output error message and exit program with failure
     printf("%s\n", message);
