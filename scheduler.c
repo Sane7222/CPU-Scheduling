@@ -4,30 +4,20 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
+#include "proc-queues.h"
 
 #define THREADS 3
 #define BUFFER 256
 
-typedef struct process {
-    int priority;
-    int time;
-    int *cpu;
-    int *io;
-    struct process *next;
-} Process;
-
 pthread_mutex_t ready_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+ProcessQueue *ready_queue = NULL; 
+ProcessQueue *io_queue = NULL;
 
 void errorWithMessage (char *message){ // Output error message and exit program with failure
     printf("%s\n", message);
     exit(1);
-}
-
-void unalloc(Process *process){ // Frees allocated memory of a struct process
-    free(process->cpu);
-    free(process->io);
-    free(process);
 }
 
 void readThread(void *arg){ // Thread function for reading from the input file
@@ -47,9 +37,15 @@ void readThread(void *arg){ // Thread function for reading from the input file
             sscanf(line, "proc %d %d%n", &process->priority, &bursts, &seek);
 
             process->cpu = malloc(((bursts >> 1) + 1) * sizeof(int));
+            process->currentCPU_Burst = 0;
+            process->totalCPU_Bursts = (bursts >> 1) + 1;
             process->io = malloc((bursts >> 1) * sizeof(int));
+            process->currentIO_Burst = 0;
+            process->totalIO_Bursts = (bursts >> 1);
             process->time = 0;
+            process->timeInReady = 0;
             process->next = NULL;
+            process->prev = NULL;
 
             pos = seek;
             for (int i = 0; i < bursts; pos += seek){ // Update process information
@@ -60,7 +56,10 @@ void readThread(void *arg){ // Thread function for reading from the input file
                 else process->io[i++ >> 1] = time;
             }
 
-            unalloc(process);
+            // add the process to the ready queue
+            pthread_mutex_lock(&ready_mutex);
+            enqueue(ready_queue, process);
+            pthread_mutex_unlock(&ready_mutex);
         }
         else if (line[1] == 'l'){ // Sleep
             sscanf(line, "sleep %d", &time);
@@ -68,6 +67,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
         }
         else if (line[1] == 't'){ // Stop
             fclose(fp);
+            printf("Input parsing complete...\n");
             pthread_exit(NULL);
         }
     }
@@ -75,11 +75,62 @@ void readThread(void *arg){ // Thread function for reading from the input file
 
 void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on scheduling algorithm
     printf("I will manage Ready Queue\n");
+    int cpuProcessTime = 0;
+
+    while (1) {
+        // grab a process from the ready queue
+        pthread_mutex_lock(&ready_mutex);
+        Process *currentProcess = dequeue(ready_queue);
+        pthread_mutex_unlock(&ready_mutex);
+
+        // work the process...
+        if (currentProcess == NULL) continue;
+        cpuProcessTime = getCurrentCPUBurstTime(currentProcess);
+        printf("CPU THREAD: sleeping for %d ms...\n", cpuProcessTime);
+        usleep(cpuProcessTime);
+
+        // mark index for next cpu burst and check if process has completed...
+        currentProcess->currentCPU_Burst++;
+        if (getCurrentCPUBurstTime(currentProcess) == -1) {
+            // process has completed!
+            printf("CPU THREAD: process completed\n");
+            freeProcess(currentProcess);
+            continue;
+        }
+
+        // add process to the ready queue
+        pthread_mutex_lock(&io_mutex);
+        enqueue(io_queue, currentProcess);
+        pthread_mutex_unlock(&io_mutex);
+    }
+
     pthread_exit(NULL);
 }
 
 void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO order
-    printf("I will manage IO Queue\n");
+    int ioProcessTime = 0;
+
+    while (1) {
+        // grab process from the io queue
+        pthread_mutex_lock(&io_mutex);
+        Process *currentProcess = dequeue(io_queue);
+        pthread_mutex_unlock(&io_mutex);
+
+        // work the process
+        if (currentProcess == NULL) continue;
+        ioProcessTime = getCurrentIOBurstTime(currentProcess);
+        printf("IO THREAD: sleeping for %d ms...\n", ioProcessTime);
+        usleep(ioProcessTime);
+
+        // mark index for next io burst
+        currentProcess->currentIO_Burst++;
+
+        // add process to the ready queue
+        pthread_mutex_lock(&ready_mutex);
+        enqueue(ready_queue, currentProcess);
+        pthread_mutex_unlock(&ready_mutex);
+    }
+
     pthread_exit(NULL);
 }
 
@@ -98,8 +149,12 @@ void main (int argc, char *argv[]){
 
     for (int i = 0; i < 4; i++) { // Check for valid algorithm
         if (!strcmp(argv[2], algos[i])) {
-            if (i == 4 && (strcmp(argv[3], "-quantum") || (quantum = atoi(argv[4])) < 1)) errorWithMessage("Missing or invalid quantum");
+            if (i == 3 && (strcmp(argv[3], "-quantum") || (quantum = atoi(argv[4])) < 1)) errorWithMessage("Missing or invalid quantum");
             valid = 1;
+
+            // valid algorithm specified, initialize appropriate queue
+            ready_queue = initProcessQueue(NULL, i);
+            io_queue = initProcessQueue(NULL, DEFAULT_PROC_QUEUE);
             break;
         }
     } if (!valid) errorWithMessage("Invalid algorithm");

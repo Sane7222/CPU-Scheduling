@@ -2,17 +2,36 @@
 #include <stdlib.h>
 #include "proc-queues.h"
 
-Process *initProcess(int priority, int time) {
-    Process *newProcess = malloc(sizeof(Process));
-    newProcess->priority = priority;
-    newProcess->time = time;
-    newProcess->timeInReady = 0;
-    newProcess->cpu = NULL;
-    newProcess->io = NULL;
-    newProcess->prev = NULL;
-    newProcess->next = NULL;
-    return newProcess;
+// ###############################
+// ## Process methods:
+
+int getCurrentCPUBurstTime(Process *currentProcess) {
+    if (currentProcess == NULL || currentProcess->currentCPU_Burst >= currentProcess->totalCPU_Bursts) {
+        return -1; // Either this process doesn't exist or this process has no remaining cpu bursts
+    } else return currentProcess->cpu[currentProcess->currentCPU_Burst];
 }
+
+int getCurrentIOBurstTime(Process *currentProcess) {
+    if (currentProcess == NULL || currentProcess->currentIO_Burst >= currentProcess->totalIO_Bursts) {
+        return -1; // Either this process doesn't exist or this process has no remaining io bursts
+    } else return currentProcess->io[currentProcess->currentIO_Burst];
+}
+
+void freeProcess(Process *process){
+    if (process->cpu != NULL) free(process->cpu);
+    if (process->io != NULL) free(process->io);
+
+    free(process);
+}
+
+void printProcess(Process *proc) {
+    if (proc != NULL) {
+        printf("<Process time=%d, priority=%d>\n", proc->time, proc->priority);
+    }
+}
+
+// ###############################
+// ## ProcessQueue methods:
 
 ProcessQueue *initProcessQueue(Process *head, int queueType) {
     ProcessQueue *newQueue = malloc(sizeof(ProcessQueue));
@@ -119,18 +138,6 @@ Process *dequeue(ProcessQueue *queue) {
     return dequeuedProcess;
 }
 
-void freeProcess(Process *process){
-    if (process->cpu != NULL) {
-        free(process->cpu);
-    }
-
-    if (process->io != NULL) {
-        free(process->io);
-    }
-
-    free(process);
-}
-
 void freeProcessQueue(ProcessQueue *queue) {
     // first, free all processes in the queue...
     Process *curr = dequeue(queue);
@@ -141,12 +148,6 @@ void freeProcessQueue(ProcessQueue *queue) {
 
     // now free the queue itself...
     free(queue);
-}
-
-void printProcess(Process *proc) {
-    if (proc != NULL) {
-        printf("<Process time=%d, priority=%d>\n", proc->time, proc->priority);
-    }
 }
 
 void printProcessQueue(ProcessQueue *queue) {
