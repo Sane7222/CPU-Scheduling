@@ -103,7 +103,7 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
             // process has completed!
             printf("CPU THREAD: process completed\n");
             processes_completed++;
-            freeProcess(currentProcess);
+            enqueue(terminated_queue, currentProcess);
             continue;
         }
 
@@ -186,5 +186,6 @@ void main (int argc, char *argv[]){
     cleanUpThreads(threads);
     freeProcessQueue(ready_queue);
     freeProcessQueue(io_queue);
+    freeProcessQueue(terminated_queue);
     exit(0);
 }
