@@ -15,14 +15,16 @@ pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
 ProcessQueue *ready_queue = NULL; 
 ProcessQueue *io_queue = NULL;
 
+int parsing_complete = 0;
+int total_processes = 0;
+int processes_completed = 0;
+
 void errorWithMessage (char *message){ // Output error message and exit program with failure
     printf("%s\n", message);
     exit(1);
 }
 
 void readThread(void *arg){ // Thread function for reading from the input file
-    printf("I will read from input file\n");
-
     FILE *fp = fopen((char *) arg, "r"); // Open file
     if (!fp){
         printf("%s\n", strerror(errno));
@@ -58,6 +60,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
 
             // add the process to the ready queue
             pthread_mutex_lock(&ready_mutex);
+            total_processes++;
             enqueue(ready_queue, process);
             pthread_mutex_unlock(&ready_mutex);
         }
@@ -67,26 +70,27 @@ void readThread(void *arg){ // Thread function for reading from the input file
         }
         else if (line[1] == 't'){ // Stop
             fclose(fp);
-            printf("Input parsing complete...\n");
+            printf("PARSING THREAD: exiting\n");
+            parsing_complete = 1;
             pthread_exit(NULL);
         }
     }
 }
 
 void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on scheduling algorithm
-    printf("I will manage Ready Queue\n");
     int cpuProcessTime = 0;
 
-    while (1) {
+    while (!parsing_complete || processes_completed < total_processes) {
         // grab a process from the ready queue
         pthread_mutex_lock(&ready_mutex);
         Process *currentProcess = dequeue(ready_queue);
         pthread_mutex_unlock(&ready_mutex);
 
         // work the process...
+        // NOTE: still need to handle RR case where quantum has expired.
         if (currentProcess == NULL) continue;
         cpuProcessTime = getCurrentCPUBurstTime(currentProcess);
-        printf("CPU THREAD: sleeping for %d ms...\n", cpuProcessTime);
+        printf("CPU THREAD: sleeping for %d ms\n", cpuProcessTime);
         usleep(cpuProcessTime);
 
         // mark index for next cpu burst and check if process has completed...
@@ -94,6 +98,7 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         if (getCurrentCPUBurstTime(currentProcess) == -1) {
             // process has completed!
             printf("CPU THREAD: process completed\n");
+            processes_completed++;
             freeProcess(currentProcess);
             continue;
         }
@@ -104,13 +109,15 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         pthread_mutex_unlock(&io_mutex);
     }
 
+    printf("CPU THREAD: completed %d processes\n", processes_completed);
+    printf("CPU THREAD: exiting\n");
     pthread_exit(NULL);
 }
 
 void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO order
     int ioProcessTime = 0;
 
-    while (1) {
+    while (!parsing_complete || processes_completed < total_processes) {
         // grab process from the io queue
         pthread_mutex_lock(&io_mutex);
         Process *currentProcess = dequeue(io_queue);
@@ -119,7 +126,7 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
         // work the process
         if (currentProcess == NULL) continue;
         ioProcessTime = getCurrentIOBurstTime(currentProcess);
-        printf("IO THREAD: sleeping for %d ms...\n", ioProcessTime);
+        printf("IO THREAD: sleeping for %d ms\n", ioProcessTime);
         usleep(ioProcessTime);
 
         // mark index for next io burst
@@ -131,6 +138,7 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
         pthread_mutex_unlock(&ready_mutex);
     }
 
+    printf("IO THREAD: exiting\n");
     pthread_exit(NULL);
 }
 
@@ -171,5 +179,7 @@ void main (int argc, char *argv[]){
     }
 
     cleanUpThreads(threads);
+    freeProcessQueue(ready_queue);
+    freeProcessQueue(io_queue);
     exit(0);
 }

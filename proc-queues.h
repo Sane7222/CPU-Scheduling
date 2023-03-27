@@ -15,7 +15,7 @@ typedef struct process {
     int currentCPU_Burst;       // index of current cpu burst
     int *io;                    // array of io burst times (in ms)
     int totalIO_Bursts;         // length of io burst array
-    int currentIO_Burst;       // index of current io burst
+    int currentIO_Burst;        // index of current io burst
 
     struct process *prev;
     struct process *next;
