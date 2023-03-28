@@ -22,6 +22,7 @@ int quantum = 0;
 int parsing_complete = 0;
 int total_processes = 0;
 int processes_completed = 0;
+double avgTurnAround_t = 0, avgReadyWaiting_t = 0; // ms
 clock_t start_processing;
 clock_t end_processing;
 
@@ -54,6 +55,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
             process->totalTimeInReadyQueue = 0;
             process->next = NULL;
             process->prev = NULL;
+            process->start = process->enter_ready = clock(); // Begin time
 
             pos = seek;
             for (int i = 0; i < bursts; pos += seek){ // Update process information
@@ -95,6 +97,8 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
 
         if (currentProcess == NULL) continue; // ready queue empty, don't sleep
 
+        currentProcess->totalTimeInReadyQueue += (double)(clock() - currentProcess->enter_ready) * 1000 / CLOCKS_PER_SEC; // Clock_Per_Sec is important to unify calculation across platforms | Time is in ms
+
         cpuBurstTime = getCurrentCPUBurstTime(currentProcess);
 
         if (ready_queue->type == RR_PROC_QUEUE) {
@@ -124,7 +128,9 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
             // process has completed!
             printf("CPU THREAD: process completed\n");
             processes_completed++;
-            enqueue(terminated_queue, currentProcess);
+
+            currentProcess->end = clock();
+            enqueue(terminated_queue, currentProcess); // Entering termination
             continue;
         }
 
@@ -158,6 +164,7 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
 
         // mark index for next io burst
         currentProcess->currentIO_Burst++;
+        currentProcess->enter_ready = clock(); // Entering ready Q
 
         // add process to the ready queue
         pthread_mutex_lock(&ready_mutex);
@@ -167,6 +174,16 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
 
     printf("IO THREAD: exiting\n");
     pthread_exit(NULL);
+}
+
+void calculate(ProcessQueue *q){
+    Process *curr;
+    while ((curr = dequeue(q)) != NULL) {
+        avgTurnAround_t += (double)(curr->end - curr->start) * 1000 / CLOCKS_PER_SEC;
+        avgReadyWaiting_t += curr->totalTimeInReadyQueue;
+    }
+    avgTurnAround_t /= total_processes;
+    avgReadyWaiting_t /= total_processes;
 }
 
 void cleanUpThreads(pthread_t *threads){ // Clean up threads
@@ -211,10 +228,19 @@ void main (int argc, char *argv[]){
     // calculate total process time
     double total_process_time = 1000 * ( (double)(end_processing - start_processing) ) / CLOCKS_PER_SEC;
     double throughput = processes_completed / total_process_time;
-    printf("Throughput (processes/ms): %f\n", throughput);
 
     freeProcessQueue(ready_queue);
     freeProcessQueue(io_queue);
+
+    calculate(terminated_queue);
     freeProcessQueue(terminated_queue);
+
+    printf("Input File Name : %s\n", argv[argc - 1]);
+    printf("CPU Scheduling Alg : %s ", argv[2]);
+    if (!strcmp(argv[2], "RR")) printf("(%d)", quantum);
+    printf("\nThroughput : %f\n", throughput); // This is for you Brad
+    printf("Avg. Turnaround Time : %f ms\n", avgTurnAround_t);
+    printf("Avg. Waiting Time in Ready Queue: %f ms\n", avgReadyWaiting_t);
+
     exit(0);
 }
