@@ -75,11 +75,11 @@ void readThread(void *arg){ // Thread function for reading from the input file
         }
         else if (line[1] == 'l'){ // Sleep
             sscanf(line, "sleep %d", &time);
-            usleep(time);
+            usleep(time * 1000);
         }
         else if (line[1] == 't'){ // Stop
             fclose(fp);
-            printf("PARSING THREAD: exiting\n");
+            //printf("PARSING THREAD: exiting\n");
             parsing_complete = 1;
             pthread_exit(NULL);
         }
@@ -106,10 +106,11 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
                 // this cpuBurst won't finish within 1 quantum.
                 // need to process for 1 quantum then readd to the ready queue.
                 currentProcess->cpu[currentProcess->currentCPU_Burst] = cpuBurstTime - quantum;
-                printf("CPU THREAD: sleeping for 1 quantum (%d ms)\n", quantum);
-                usleep(quantum);
+                //printf("CPU THREAD: sleeping for 1 quantum (%d ms)\n", quantum);
+                usleep(quantum * 1000);
 
                 // add process back into ready queue
+                currentProcess->enter_ready = clock();
                 pthread_mutex_lock(&ready_mutex);
                 enqueue(ready_queue, currentProcess);
                 pthread_mutex_unlock(&ready_mutex);
@@ -119,14 +120,14 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         }
 
 
-        printf("CPU THREAD: sleeping for %d ms\n", cpuBurstTime);
-        usleep(cpuBurstTime);
+        //printf("CPU THREAD: sleeping for %d ms\n", cpuBurstTime);
+        usleep(cpuBurstTime * 1000);
 
         // mark index for next cpu burst and check if process has completed...
         currentProcess->currentCPU_Burst++;
         if (getCurrentCPUBurstTime(currentProcess) == -1) {
             // process has completed!
-            printf("CPU THREAD: process completed\n");
+            //printf("CPU THREAD: process completed\n");
             processes_completed++;
 
             currentProcess->end = clock();
@@ -142,8 +143,8 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
 
     end_processing = clock();
 
-    printf("CPU THREAD: completed %d processes\n", processes_completed);
-    printf("CPU THREAD: exiting\n");
+    //printf("CPU THREAD: completed %d processes\n", processes_completed);
+    //printf("CPU THREAD: exiting\n");
     pthread_exit(NULL);
 }
 
@@ -159,8 +160,8 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
         // work the process
         if (currentProcess == NULL) continue;
         ioProcessTime = getCurrentIOBurstTime(currentProcess);
-        printf("IO THREAD: sleeping for %d ms\n", ioProcessTime);
-        usleep(ioProcessTime);
+        //printf("IO THREAD: sleeping for %d ms\n", ioProcessTime);
+        usleep(ioProcessTime * 1000);
 
         // mark index for next io burst
         currentProcess->currentIO_Burst++;
@@ -172,7 +173,7 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
         pthread_mutex_unlock(&ready_mutex);
     }
 
-    printf("IO THREAD: exiting\n");
+    //printf("IO THREAD: exiting\n");
     pthread_exit(NULL);
 }
 
