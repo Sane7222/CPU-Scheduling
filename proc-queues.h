@@ -9,7 +9,7 @@
 typedef struct process {
     int priority;               // priority of the process
     int time;                   // total burst time (cpu + io)
-    int totalTimeInReadyQueue;  // total time in ready queue (starts at 0)
+    double totalTimeInReadyQueue;  // total time in ready queue (starts at 0) (in ms)
     int *cpu;                   // array of cpu burst times (in ms)
     int totalCPU_Bursts;        // length of cpu burst array
     int currentCPU_Burst;       // index of current cpu burst
@@ -19,7 +19,6 @@ typedef struct process {
     clock_t start;              // process start time
     clock_t end;                // process end time
     clock_t enter_ready;        // time entering ready queue
-    clock_t exit_ready;         // time exiting ready queue
 
     struct process *prev;
     struct process *next;
