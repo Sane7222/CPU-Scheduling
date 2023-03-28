@@ -17,6 +17,8 @@ ProcessQueue *ready_queue = NULL;
 ProcessQueue *io_queue = NULL;
 ProcessQueue *terminated_queue = NULL;
 
+int quantum = 0;
+
 int parsing_complete = 0;
 int total_processes = 0;
 int processes_completed = 0;
@@ -69,6 +71,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
             total_processes++;
             enqueue(ready_queue, process);
             pthread_mutex_unlock(&ready_mutex);
+            if (total_processes == 1) start_processing = clock();
         }
         else if (line[1] == 'l'){ // Sleep
             sscanf(line, "sleep %d", &time);
@@ -84,7 +87,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
 }
 
 void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on scheduling algorithm
-    int cpuProcessTime = 0;
+    int cpuBurstTime = 0;
 
     while (!parsing_complete || processes_completed < total_processes) {
         // grab a process from the ready queue
@@ -92,15 +95,32 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         Process *currentProcess = dequeue(ready_queue);
         pthread_mutex_unlock(&ready_mutex);
 
-        // work the process...
-        // NOTE: still need to handle RR case where quantum has expired.
-        if (currentProcess == NULL) continue;
+        if (currentProcess == NULL) continue; // ready queue empty, don't sleep
 
         currentProcess->totalTimeInReadyQueue += (double)(clock() - currentProcess->enter_ready) * 1000 / CLOCKS_PER_SEC; // Clock_Per_Sec is important to unify calculation across platforms | Time is in ms
 
-        cpuProcessTime = getCurrentCPUBurstTime(currentProcess);
-        printf("CPU THREAD: sleeping for %d ms\n", cpuProcessTime);
-        usleep(cpuProcessTime);
+        cpuBurstTime = getCurrentCPUBurstTime(currentProcess);
+
+        if (ready_queue->type == RR_PROC_QUEUE) {
+            if (cpuBurstTime > quantum) {
+                // this cpuBurst won't finish within 1 quantum.
+                // need to process for 1 quantum then readd to the ready queue.
+                currentProcess->cpu[currentProcess->currentCPU_Burst] = cpuBurstTime - quantum;
+                printf("CPU THREAD: sleeping for 1 quantum (%d ms)\n", quantum);
+                usleep(quantum);
+
+                // add process back into ready queue
+                pthread_mutex_lock(&ready_mutex);
+                enqueue(ready_queue, currentProcess);
+                pthread_mutex_unlock(&ready_mutex);
+
+                continue;
+            }
+        }
+
+
+        printf("CPU THREAD: sleeping for %d ms\n", cpuBurstTime);
+        usleep(cpuBurstTime);
 
         // mark index for next cpu burst and check if process has completed...
         currentProcess->currentCPU_Burst++;
@@ -119,6 +139,8 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         enqueue(io_queue, currentProcess);
         pthread_mutex_unlock(&io_mutex);
     }
+
+    end_processing = clock();
 
     printf("CPU THREAD: completed %d processes\n", processes_completed);
     printf("CPU THREAD: exiting\n");
@@ -171,7 +193,6 @@ void cleanUpThreads(pthread_t *threads){ // Clean up threads
 void main (int argc, char *argv[]){
     char *algos[] = {"FCFS", "SJF", "PR", "RR"};
     int valid = 0;
-    int quantum = 0;
 
     if (argc < 5 || argc > 7) errorWithMessage("Invalid parameters"); // Check for valid parameters
     if (strcmp(argv[1], "-alg")) errorWithMessage("Missing algorithm");
@@ -201,7 +222,13 @@ void main (int argc, char *argv[]){
         }
     }
 
+    // wait on threads
     cleanUpThreads(threads);
+
+    // calculate total process time
+    double total_process_time = 1000 * ( (double)(end_processing - start_processing) ) / CLOCKS_PER_SEC;
+    double throughput = processes_completed / total_process_time;
+
     freeProcessQueue(ready_queue);
     freeProcessQueue(io_queue);
 
@@ -211,7 +238,7 @@ void main (int argc, char *argv[]){
     printf("Input File Name : %s\n", argv[argc - 1]);
     printf("CPU Scheduling Alg : %s ", argv[2]);
     if (!strcmp(argv[2], "RR")) printf("(%d)", quantum);
-    printf("\nThroughput : %f\n", 123.456789); // This is for you Brad
+    printf("\nThroughput : %f\n", throughput); // This is for you Brad
     printf("Avg. Turnaround Time : %f ms\n", avgTurnAround_t);
     printf("Avg. Waiting Time in Ready Queue: %f ms\n", avgReadyWaiting_t);
 
