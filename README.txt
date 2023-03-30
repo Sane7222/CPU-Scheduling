@@ -4,10 +4,19 @@ Team: Matias Moseley & Bradley Dowling
 ######################################################
 ## How we share data between parts of the program:
 
+We share data between threads with data structures. There are two in our program.
+The first is a process structure that holds relevant information about the process itself.
+The second is a process queue structure that is global to all threads.
+The process queue points to a doubly linked list of process structs that all threads can access.
+We also track several process metrics using global variables (see Data Generation for Measurements, for more info)
+
 
 ######################################################
 ## Approach to synchronization issues:
 
+We use mutexes to ensure exclusive access to each process queue structure that is used by multiple threads.
+There are two mutexes in our program. One for the ready process queue and the other for the io process queue.
+Threads must lock a mutex before they can gain access to the contents of the process queue associated with it.
 
 ######################################################
 ## How to switch between scheduling algorithms:
@@ -55,3 +64,7 @@ These values are then printed to STDOUT in the required format.
 
 ######################################################
 ## The purposes of threads beyond the 3 required:
+
+We only use the main thread to spawn the 3 required threads specified in the handout.
+The main thread parses the command line arguments and then delegates resources to each required thread.
+There are no additional threads beyond those.
