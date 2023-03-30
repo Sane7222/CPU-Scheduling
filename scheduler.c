@@ -182,6 +182,7 @@ void calculate(ProcessQueue *q){
     while ((curr = dequeue(q)) != NULL) {
         avgTurnAround_t += (double)(curr->end - curr->start) * 1000 / CLOCKS_PER_SEC;
         avgReadyWaiting_t += curr->totalTimeInReadyQueue;
+        freeProcess(curr);
     }
     avgTurnAround_t /= total_processes;
     avgReadyWaiting_t /= total_processes;
