@@ -4,7 +4,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
-#include <time.h>
+#include <sys/time.h>
 #include "proc-queues.h"
 
 #define THREADS 3
@@ -22,9 +22,9 @@ int quantum = 0;
 int parsing_complete = 0;
 int total_processes = 0;
 int processes_completed = 0;
-double avgTurnAround_t = 0, avgReadyWaiting_t = 0; // ms
-clock_t start_processing;
-clock_t end_processing;
+long long avgTurnAround_t = 0, avgReadyWaiting_t = 0; // ms
+struct timeval start_processing;
+struct timeval end_processing;
 
 void errorWithMessage (char *message){ // Output error message and exit program with failure
     printf("%s\n", message);
@@ -57,7 +57,8 @@ void readThread(void *arg){ // Thread function for reading from the input file
             process->totalTimeInReadyQueue = 0;
             process->next = NULL;
             process->prev = NULL;
-            process->start = process->enter_ready = clock(); // Begin time
+            gettimeofday(&process->start, NULL); // Begin time
+            gettimeofday(&process->enter_ready, NULL);
 
             pos = seek;
             for (int i = 0; i < bursts; pos += seek){ // Update process information
@@ -73,7 +74,7 @@ void readThread(void *arg){ // Thread function for reading from the input file
             total_processes++;
             enqueue(ready_queue, process);
             pthread_mutex_unlock(&ready_mutex);
-            if (total_processes == 1) start_processing = clock();
+            if (total_processes == 1) gettimeofday(&start_processing, NULL);
         }
         else if (line[1] == 'l'){ // Sleep
             sscanf(line, "sleep %d", &time);
@@ -99,7 +100,8 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
 
         if (currentProcess == NULL) continue; // ready queue empty, don't sleep
 
-        currentProcess->totalTimeInReadyQueue += (double)(clock() - currentProcess->enter_ready) * 1000 / CLOCKS_PER_SEC; // Clock_Per_Sec is important to unify calculation across platforms | Time is in ms
+        gettimeofday(&currentProcess->end, NULL);
+        currentProcess->totalTimeInReadyQueue += (currentProcess->end.tv_sec - currentProcess->start.tv_sec) * 1000LL + (currentProcess->end.tv_usec - currentProcess->start.tv_usec) / 1000LL;
 
         cpuBurstTime = getCurrentCPUBurstTime(currentProcess);
 
@@ -112,7 +114,7 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
                 usleep(quantum * 1000);
 
                 // add process back into ready queue
-                currentProcess->enter_ready = clock();
+                gettimeofday(&currentProcess->enter_ready, NULL);
                 pthread_mutex_lock(&ready_mutex);
                 enqueue(ready_queue, currentProcess);
                 pthread_mutex_unlock(&ready_mutex);
@@ -132,7 +134,7 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
             //printf("CPU THREAD: process completed\n");
             processes_completed++;
 
-            currentProcess->end = clock();
+            gettimeofday(&currentProcess->end, NULL);
             enqueue(terminated_queue, currentProcess); // Entering termination
             continue;
         }
@@ -143,7 +145,7 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         pthread_mutex_unlock(&io_mutex);
     }
 
-    end_processing = clock();
+    gettimeofday(&end_processing, NULL);
 
     //printf("CPU THREAD: completed %d processes\n", processes_completed);
     //printf("CPU THREAD: exiting\n");
@@ -167,7 +169,7 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
 
         // mark index for next io burst
         currentProcess->currentIO_Burst++;
-        currentProcess->enter_ready = clock(); // Entering ready Q
+        gettimeofday(&currentProcess->enter_ready, NULL);
 
         // add process to the ready queue
         pthread_mutex_lock(&ready_mutex);
@@ -182,7 +184,7 @@ void ioThread(void * arg){ // Thread function for simulating IO bursts in FIFO o
 void calculate(ProcessQueue *q){
     Process *curr;
     while ((curr = dequeue(q)) != NULL) {
-        avgTurnAround_t += (double)(curr->end - curr->start) * 1000 / CLOCKS_PER_SEC;
+        avgTurnAround_t += (curr->end.tv_sec - curr->start.tv_sec) * 1000LL + (curr->end.tv_usec - curr->start.tv_usec) / 1000LL;
         avgReadyWaiting_t += curr->totalTimeInReadyQueue;
         freeProcess(curr);
     }
@@ -230,8 +232,8 @@ void main (int argc, char *argv[]){
     cleanUpThreads(threads);
 
     // calculate total process time
-    double total_process_time = 1000 * ( (double)(end_processing - start_processing) ) / CLOCKS_PER_SEC;
-    double throughput = processes_completed / total_process_time;
+    long long total_process_time = (end_processing.tv_sec - start_processing.tv_sec) * 1000LL + (end_processing.tv_usec - start_processing.tv_usec) / 1000LL;
+    long long throughput = processes_completed / total_process_time;
 
     freeProcessQueue(ready_queue);
     freeProcessQueue(io_queue);
@@ -242,9 +244,9 @@ void main (int argc, char *argv[]){
     printf("Input File Name : %s\n", argv[argc - 1]);
     printf("CPU Scheduling Alg : %s ", argv[2]);
     if (!strcmp(argv[2], "RR")) printf("(%d)", quantum);
-    printf("\nThroughput : %f\n", throughput); // This is for you Brad
-    printf("Avg. Turnaround Time : %f ms\n", avgTurnAround_t);
-    printf("Avg. Waiting Time in Ready Queue: %f ms\n", avgReadyWaiting_t);
+    printf("\nThroughput : %lld\n", throughput); // This is for you Brad
+    printf("Avg. Turnaround Time : %lld ms\n", avgTurnAround_t);
+    printf("Avg. Waiting Time in Ready Queue: %lld ms\n", avgReadyWaiting_t);
 
     exit(0);
 }
