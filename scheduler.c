@@ -101,7 +101,7 @@ void cpuThread(void *arg){ // Thread function for simulating CPU bursts based on
         if (currentProcess == NULL) continue; // ready queue empty, don't sleep
 
         gettimeofday(&currentProcess->end, NULL);
-        currentProcess->totalTimeInReadyQueue += (currentProcess->end.tv_sec - currentProcess->start.tv_sec) * 1000LL + (currentProcess->end.tv_usec - currentProcess->start.tv_usec) / 1000LL;
+        currentProcess->totalTimeInReadyQueue += (currentProcess->end.tv_sec - currentProcess->enter_ready.tv_sec) * 1000LL + (currentProcess->end.tv_usec - currentProcess->enter_ready.tv_usec) / 1000LL;
 
         cpuBurstTime = getCurrentCPUBurstTime(currentProcess);
 
@@ -233,7 +233,7 @@ void main (int argc, char *argv[]){
 
     // calculate total process time
     long long total_process_time = (end_processing.tv_sec - start_processing.tv_sec) * 1000LL + (end_processing.tv_usec - start_processing.tv_usec) / 1000LL;
-    long long throughput = processes_completed / total_process_time;
+    double throughput = processes_completed / (double) total_process_time;
 
     freeProcessQueue(ready_queue);
     freeProcessQueue(io_queue);
@@ -244,7 +244,7 @@ void main (int argc, char *argv[]){
     printf("Input File Name : %s\n", argv[argc - 1]);
     printf("CPU Scheduling Alg : %s ", argv[2]);
     if (!strcmp(argv[2], "RR")) printf("(%d)", quantum);
-    printf("\nThroughput : %lld\n", throughput); // This is for you Brad
+    printf("\nThroughput : %f\n", throughput); // This is for you Brad
     printf("Avg. Turnaround Time : %lld ms\n", avgTurnAround_t);
     printf("Avg. Waiting Time in Ready Queue: %lld ms\n", avgReadyWaiting_t);
 
