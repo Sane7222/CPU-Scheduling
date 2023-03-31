@@ -44,6 +44,9 @@ ProcessQueue *initProcessQueue(Process *head, int queueType) {
 void enqueue(ProcessQueue *queue, Process *newProcess) {
     Process *curr = queue->head;
 
+    int newCPUBurstTime = getCurrentCPUBurstTime(newProcess);
+    int nextCPUBurstTime;
+
     // handle an empty queue:
     if (curr == NULL) {
         queue->head = newProcess;
@@ -55,7 +58,7 @@ void enqueue(ProcessQueue *queue, Process *newProcess) {
     if (queue->type == SJF_PROC_QUEUE) {
 
         // handle newProcess time being shortest in queue
-        if (newProcess->time < curr->time) {
+        if (newCPUBurstTime < getCurrentCPUBurstTime(curr)) {
             newProcess->next = curr;
             curr->prev = newProcess;
             newProcess->prev = NULL;
@@ -64,7 +67,7 @@ void enqueue(ProcessQueue *queue, Process *newProcess) {
         }
 
         // traverse the queue
-        while (curr->time <= newProcess->time) {
+        while (newCPUBurstTime >= getCurrentCPUBurstTime(curr)) {
             // handle end of queue scenario
             if (curr->next == NULL) {
                 curr->next = newProcess;
