@@ -34,6 +34,8 @@ void errorWithMessage (char *message){ // Output error message and exit program 
 void readThread(void *arg){ // Thread function for reading from the input file
     FILE *fp = fopen((char *) arg, "r"); // Open file
     if (!fp){
+        parsing_complete = 1;
+        total_processes = 0;
         printf("%s\n", strerror(errno));
         pthread_exit(NULL);
     }
